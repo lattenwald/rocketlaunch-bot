@@ -3,6 +3,17 @@ use std::path::PathBuf;
 use clap::Parser;
 use serde::Deserialize;
 
+#[derive(Debug, Clone, Parser)]
+pub struct Args {
+    pub config: PathBuf,
+}
+
+impl Args {
+    pub fn get_config(self) -> Config {
+        Config::parse_file(self.config)
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     pub bot: BotConfig,
