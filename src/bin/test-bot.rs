@@ -11,6 +11,7 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
+    dbg!(&args);
 
     init_bot(args.bot).await;
 }
