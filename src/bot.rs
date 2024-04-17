@@ -1,3 +1,7 @@
+use std::fmt::Write;
+
+use chrono::{Duration, DurationRound, TimeDelta, Utc};
+use humantime::format_duration;
 use teloxide::{
     adaptors::{trace, CacheMe, DefaultParseMode, Throttle, Trace},
     dispatching::{Dispatcher, UpdateFilterExt},
@@ -9,7 +13,11 @@ use teloxide::{
 };
 use tracing::info;
 
-use crate::{config::BotConfig, db::Db};
+use crate::{
+    config::BotConfig,
+    db::Db,
+    types::{Launch, RLError},
+};
 
 pub type MyBot = Trace<Throttle<CacheMe<DefaultParseMode<Bot>>>>;
 pub type MyDispatcher =
@@ -95,6 +103,16 @@ async fn unauthorized_command_handler(
                 )
                 .reply_to_message_id(msg.id)
                 .await?;
+                let notify_up_to = Utc::now() + Duration::try_days(2).unwrap();
+                for launch in db.get_launches().unwrap_or_default() {
+                    let Some(t0) = launch.t0 else {
+                        continue;
+                    };
+                    if t0 > notify_up_to {
+                        continue;
+                    }
+                    let _ = launch_notify(&bot, &db, &launch, msg.chat.id.0).await;
+                }
             }
             Err(err) => {
                 bot.send_message(
@@ -144,5 +162,58 @@ async fn command_handler(bot: MyBot, msg: Message, cmd: Command) -> ResponseResu
                 .await?;
         }
     }
+    Ok(())
+}
+
+pub async fn launches_notify(bot: &MyBot, db: &Db, launches: &[Launch]) -> Result<(), RLError> {
+    for launch in launches {
+        let Some(t0) = launch.t0 else {
+            continue;
+        };
+        for chat_id in db.get_unnotified(launch.id, t0)? {
+            launch_notify(bot, db, launch, chat_id).await?;
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn launch_notify(
+    bot: &MyBot,
+    db: &Db,
+    launch: &Launch,
+    chat_id: i64,
+) -> Result<(), RLError> {
+    let now = Utc::now()
+        .duration_round(TimeDelta::try_minutes(1).unwrap())
+        .unwrap();
+    let Some(t0) = launch.t0 else {
+        return Ok(());
+    };
+    let mut text = format!(
+        "[{} \\- {}](https://rocketlaunch.live/launch/{})\n{} \\(in *{}*\\)\n{}",
+        markdown::escape(&launch.provider.name),
+        markdown::escape(&launch.vehicle.name),
+        markdown::escape(&launch.slug),
+        markdown::escape(&format!("{}", t0)),
+        markdown::escape(&format!(
+            "{}",
+            format_duration((t0 - now).to_std().unwrap())
+        )),
+        markdown::escape(&format!("{}", launch.pad)),
+    );
+
+    if let Some(desc) = &launch.mission_description {
+        let _ = write!(text, "\n\n{}", markdown::escape(desc));
+    }
+
+    if launch.suborbital {
+        let _ = write!(text, "\n\nsuborbital");
+    }
+
+    info!("notifying {} about launch {}", chat_id, launch.id);
+    bot.send_message(ChatId(chat_id), &text).await?;
+    db.set_notified(chat_id, launch.id, t0)?;
+
     Ok(())
 }

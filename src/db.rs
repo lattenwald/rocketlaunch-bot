@@ -4,6 +4,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::types::Launch;
+
 const NOTIFY_TIMES: [i64; 3] = [3600 * 24, 3600, 15 * 60];
 
 #[derive(Debug, Clone)]
@@ -24,6 +26,23 @@ impl Db {
     {
         let db = sled::open(path)?;
         Ok(Self { db })
+    }
+
+    pub fn set_launches(&self, launches: &[Launch]) -> sled::Result<()> {
+        self.db
+            .set_merge_operator(|_key, _old, new| Some(new.to_vec()));
+        self.db
+            .merge("launches", serde_json::to_vec(launches).unwrap())?;
+        Ok(())
+    }
+
+    pub fn get_launches(&self) -> sled::Result<Vec<Launch>> {
+        let launches = self
+            .db
+            .get("launches")?
+            .and_then(|val| serde_json::from_slice::<Vec<Launch>>(&val).ok())
+            .unwrap_or_default();
+        Ok(launches)
     }
 
     #[tracing::instrument(skip_all)]
@@ -55,9 +74,7 @@ impl Db {
                 let Ok((key, val)) = a else { return None };
                 let launches: HashMap<u64, i64> = serde_json::from_slice(&val).ok()?;
                 let chat_id = serde_json::from_slice::<i64>(&key).ok()?;
-                let Some(time_diff) = launches.get(&launch_id) else {
-                    return Some(chat_id);
-                };
+                let time_diff = launches.get(&launch_id).unwrap_or(&(24 * 3600));
                 let until_launch = launch_t0.timestamp() - Utc::now().timestamp();
                 for t in NOTIFY_TIMES {
                     if *time_diff <= t {
