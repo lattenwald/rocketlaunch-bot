@@ -54,25 +54,25 @@ pub async fn init_bot(config: BotConfig, db: Db) -> (MyBot, MyDispatcher) {
 }
 
 #[derive(BotCommands, Clone, Debug)]
-#[command(rename_rule = "snake_case", description = "*Команды:*")]
+#[command(rename_rule = "snake_case", description = "*Commands:*")]
 enum UnauthorizedCommand {
-    #[command(description = "id текущего чата")]
+    #[command(description = "current chat id")]
     Id,
 
-    #[command(description = "подписаться на запуски")]
-    Subscribe,
+    #[command(description = "subscribe to launches notifications")]
+    Start,
 
-    #[command(description = "отписаться от запусков")]
-    Unsubscribe,
+    #[command(description = "unsubscribe from launches notifications")]
+    Stop,
 
-    #[command(description = "помощь")]
+    #[command(description = "help")]
     Help,
 }
 
 #[derive(BotCommands, Clone, Debug)]
-#[command(rename_rule = "snake_case", description = "*Админские команды:*")]
+#[command(rename_rule = "snake_case", description = "*Admin commands:*")]
 enum Command {
-    #[command(description = "помощь")]
+    #[command(description = "help")]
     Help,
 }
 
@@ -95,7 +95,7 @@ async fn unauthorized_command_handler(
                 .reply_to_message_id(msg.id)
                 .await?;
         }
-        UnauthorizedCommand::Subscribe => match db.subscribe(msg.chat.id.0) {
+        UnauthorizedCommand::Start => match db.subscribe(msg.chat.id.0) {
             Ok(_) => {
                 bot.send_message(
                     msg.chat.id,
@@ -126,7 +126,7 @@ async fn unauthorized_command_handler(
                 .await?;
             }
         },
-        UnauthorizedCommand::Unsubscribe => match db.unsubscribe(msg.chat.id.0) {
+        UnauthorizedCommand::Stop => match db.unsubscribe(msg.chat.id.0) {
             Ok(_) => {
                 bot.send_message(msg.chat.id, "Отписались")
                     .reply_to_message_id(msg.id)
