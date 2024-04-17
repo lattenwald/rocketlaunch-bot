@@ -53,20 +53,17 @@ fn spawn_shutdown() -> (CancellationToken, CancellationToken) {
     let cancellation = CancellationToken::new();
     let force_stop = CancellationToken::new();
     {
-        // Просто клонируем токен, не создавая дочерний
         let cancellation = cancellation.clone();
         let force_stop = force_stop.clone();
         tokio::spawn(async move {
             loop {
                 tokio::signal::ctrl_c().await.unwrap();
-
-                // Ставим пометку о завершении, новые задачи уже не будем брать
                 info!("Ctrl-C signal received, wait for started tasks");
                 cancellation.cancel();
 
-                // На третий ctrl+c force stop
                 tokio::signal::ctrl_c().await.unwrap();
                 warn!("Chill dude, have some patience...");
+
                 tokio::signal::ctrl_c().await.unwrap();
                 warn!("Aight aight, I gotcha, FORCE STOP");
                 force_stop.cancel();
