@@ -89,9 +89,12 @@ async fn unauthorized_command_handler(
         }
         UnauthorizedCommand::Subscribe => match db.subscribe(msg.chat.id.0) {
             Ok(_) => {
-                bot.send_message(msg.chat.id, "Есть подписка, ждите уведомлений!")
-                    .reply_to_message_id(msg.id)
-                    .await?;
+                bot.send_message(
+                    msg.chat.id,
+                    markdown::escape("Есть подписка, ждите уведомлений!"),
+                )
+                .reply_to_message_id(msg.id)
+                .await?;
             }
             Err(err) => {
                 bot.send_message(

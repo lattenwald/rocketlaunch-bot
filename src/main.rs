@@ -1,7 +1,7 @@
 use clap::Parser;
 use rocketlaunch_bot::{bot::init_bot, config::Args, db::Db, fetch::worker};
 use tokio_util::sync::CancellationToken;
-use tracing::{info, info_span, warn};
+use tracing::{info, warn};
 
 #[tokio::main]
 #[tracing::instrument]
@@ -57,8 +57,6 @@ fn spawn_shutdown() -> (CancellationToken, CancellationToken) {
         let cancellation = cancellation.clone();
         let force_stop = force_stop.clone();
         tokio::spawn(async move {
-            let span = info_span!("ctrl-c-handler");
-            let _g = span.enter();
             loop {
                 tokio::signal::ctrl_c().await.unwrap();
 
