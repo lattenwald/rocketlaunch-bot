@@ -1,6 +1,5 @@
 use clap::Parser;
-use rocketlaunch_bot::{bot::init_bot, config::BotConfig};
-use tokio_util::sync::CancellationToken;
+use rocketlaunch_bot::{bot::init_bot, config::BotConfig, db::Db};
 
 #[derive(Debug, Clone, Parser)]
 struct Args {
@@ -14,7 +13,8 @@ async fn main() {
     let args = Args::parse();
     dbg!(&args);
 
-    let cancellation = CancellationToken::new();
+    let db = Db::open("test_db").unwrap();
 
-    init_bot(args.bot, cancellation).await;
+    let (_bot, mut dispatcher) = init_bot(args.bot, db).await;
+    dispatcher.dispatch().await;
 }

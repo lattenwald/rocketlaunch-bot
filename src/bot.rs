@@ -4,16 +4,17 @@ use teloxide::{
     prelude::*,
     requests::ResponseResult,
     types::{Message, ParseMode, Update},
-    utils::command::BotCommands,
+    utils::{command::BotCommands, markdown},
     Bot,
 };
-use tokio_util::sync::CancellationToken;
 
-use crate::config::BotConfig;
+use crate::{config::BotConfig, db::Db};
 
-type MyBot = Trace<Throttle<CacheMe<DefaultParseMode<Bot>>>>;
+pub type MyBot = Trace<Throttle<CacheMe<DefaultParseMode<Bot>>>>;
+pub type MyDispatcher =
+    Dispatcher<MyBot, teloxide::RequestError, teloxide::dispatching::DefaultKey>;
 
-pub async fn init_bot(config: BotConfig, cancellation: CancellationToken) {
+pub async fn init_bot(config: BotConfig, db: Db) -> (MyBot, MyDispatcher) {
     let bot: MyBot = Bot::new(config.token.clone())
         .parse_mode(ParseMode::MarkdownV2)
         .cache_me()
@@ -35,14 +36,12 @@ pub async fn init_bot(config: BotConfig, cancellation: CancellationToken) {
                 ),
         );
 
-    let mut dispatcher = Dispatcher::builder(bot.clone(), handler)
-        .dependencies(dptree::deps![config])
-        .build();
-
-    tokio::select! {
-        _ = dispatcher.dispatch() => (),
-        _ = cancellation.cancelled() => (),
-    };
+    (
+        bot.clone(),
+        Dispatcher::builder(bot.clone(), handler)
+            .dependencies(dptree::deps![config, db])
+            .build(),
+    )
 }
 
 #[derive(BotCommands, Clone, Debug)]
@@ -60,6 +59,11 @@ enum Command {
 
     #[command(description = "id текущего чата")]
     Id,
+
+    #[command(description = "подписаться на запуски")]
+    Subscribe,
+    // #[command(description = "отписаться от запусков")]
+    // Unsubscribe,
 }
 
 async fn unauthorized_command_handler(
@@ -77,7 +81,7 @@ async fn unauthorized_command_handler(
     Ok(())
 }
 
-async fn command_handler(bot: MyBot, msg: Message, cmd: Command) -> ResponseResult<()> {
+async fn command_handler(bot: MyBot, msg: Message, cmd: Command, db: Db) -> ResponseResult<()> {
     match cmd {
         Command::Help => {
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
@@ -89,6 +93,24 @@ async fn command_handler(bot: MyBot, msg: Message, cmd: Command) -> ResponseResu
                 .reply_to_message_id(msg.id)
                 .await?;
         }
+        Command::Subscribe => match db.subscribe(msg.chat.id.0) {
+            Ok(_) => {
+                bot.send_message(msg.chat.id, "Есть подписка, ждите уведомлений!")
+                    .reply_to_message_id(msg.id)
+                    .await?;
+            }
+            Err(err) => {
+                bot.send_message(
+                    msg.chat.id,
+                    format!(
+                        "Ошибка подписки:\n```\n{}\n```",
+                        markdown::escape(&format!("{:?}", err))
+                    ),
+                )
+                .reply_to_message_id(msg.id)
+                .await?;
+            }
+        },
     }
     Ok(())
 }

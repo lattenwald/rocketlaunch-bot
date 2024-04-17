@@ -126,3 +126,18 @@ where
 
     deserializer.deserialize_any(DatetimeOrNull)
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum RLError {
+    #[error("reqwest -> {0}")]
+    Reqwest(#[from] reqwest::Error),
+
+    #[error("json -> {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("sled -> {0}")]
+    Sled(#[from] sled::Error),
+
+    #[error("teloxide -> {0}")]
+    Teloxide(#[from] teloxide::RequestError),
+}
