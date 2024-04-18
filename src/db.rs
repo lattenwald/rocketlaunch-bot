@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::types::Launch;
 
@@ -62,6 +62,7 @@ impl Db {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn get_unnotified(
         &self,
         launch_id: u64,
@@ -81,11 +82,10 @@ impl Db {
                         continue;
                     }
                     if until_launch <= t {
-                        dbg!(launch_id);
-                        dbg!(launch_t0);
-                        dbg!(t);
-                        dbg!(time_diff);
-                        dbg!(until_launch);
+                        debug!(
+                            "launch_id={} launch_t0={} t={} time_diff={} until_launch={}",
+                            launch_id, launch_t0, t, time_diff, until_launch
+                        );
                         return Some(chat_id);
                     }
                 }
@@ -111,6 +111,21 @@ impl Db {
 
     pub fn iter(&self) -> sled::Iter {
         self.db.iter()
+    }
+
+    pub fn replace_chat_id(&self, old_chat_id: i64, new_chat_id: i64) -> sled::Result<bool> {
+        if let Some(data) = self.db.remove(old_chat_id.to_string())? {
+            let new_key = new_chat_id.to_string();
+            if self.db.contains_key(&new_key)? {
+                self.db.set_merge_operator(merge_add);
+                self.db.merge(&new_key, data)?;
+            } else {
+                self.db.insert(&new_key, data)?;
+            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 

@@ -9,9 +9,9 @@ use teloxide::{
     requests::ResponseResult,
     types::{Message, ParseMode, Update},
     utils::{command::BotCommands, markdown},
-    Bot,
+    ApiError, Bot, RequestError,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     config::BotConfig,
@@ -212,8 +212,41 @@ pub async fn launch_notify(
     }
 
     info!("notifying {} about launch {}", chat_id, launch.id);
-    bot.send_message(ChatId(chat_id), &text).await?;
-    db.set_notified(chat_id, launch.id, t0)?;
+    match bot.send_message(ChatId(chat_id), &text).await {
+        Ok(_) => {
+            db.set_notified(chat_id, launch.id, t0)?;
+        }
+        Err(err) => {
+            match err {
+                RequestError::Api(ref api_err) => match api_err {
+                    ApiError::BotBlocked
+                    | ApiError::BotKicked
+                    | ApiError::BotKickedFromSupergroup
+                    | ApiError::ChatNotFound
+                    | ApiError::UserNotFound
+                    | ApiError::UserDeactivated
+                    | ApiError::GroupDeactivated
+                    | ApiError::CantTalkWithBots => {
+                        warn!(
+                            "unsubscribing {} from updates due to api error {}",
+                            chat_id, api_err
+                        );
+                        db.unsubscribe(chat_id)?;
+                    }
+                    _ => {}
+                },
+                RequestError::MigrateToChatId(new_chat_id) => {
+                    warn!(
+                        "chat_id {} migrated to new chat_id {}",
+                        chat_id, new_chat_id
+                    );
+                    db.replace_chat_id(chat_id, new_chat_id)?;
+                }
+                _ => {}
+            }
+            Err(err)?;
+        }
+    }
 
     Ok(())
 }
