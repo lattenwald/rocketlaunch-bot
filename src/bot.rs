@@ -7,7 +7,7 @@ use teloxide::{
     dispatching::{Dispatcher, UpdateFilterExt},
     prelude::*,
     requests::ResponseResult,
-    types::{Message, ParseMode, Update},
+    types::{Message, MessageId, ParseMode, Update},
     utils::{command::BotCommands, markdown},
     ApiError, Bot, RequestError,
 };
@@ -117,7 +117,7 @@ async fn unauthorized_command_handler(
                     if t0 > notify_up_to {
                         continue;
                     }
-                    let _ = launch_notify(&bot, &db, &launch, msg.chat.id.0).await;
+                    let _ = launch_notify(&bot, &db, &launch, msg.chat.id.0, None).await;
                 }
             }
             Err(err) => {
@@ -155,7 +155,7 @@ async fn unauthorized_command_handler(
                 if launch.t0.is_none() {
                     continue;
                 }
-                let _ = launch_notify(&bot, &db, &launch, msg.chat.id.0).await;
+                let _ = launch_notify(&bot, &db, &launch, msg.chat.id.0, Some(msg.id)).await;
             }
         }
         UnauthorizedCommand::Next => {
@@ -173,7 +173,7 @@ async fn unauthorized_command_handler(
                 })
                 .min_by_key(|l| l.t0)
             {
-                let _ = launch_notify(&bot, &db, launch, msg.chat.id.0).await;
+                let _ = launch_notify(&bot, &db, launch, msg.chat.id.0, Some(msg.id)).await;
             }
         }
     }
@@ -203,7 +203,7 @@ pub async fn launches_notify(bot: &MyBot, db: &Db, launches: &[Launch]) -> Resul
             continue;
         };
         for chat_id in db.get_unnotified(launch.id, t0)? {
-            launch_notify(bot, db, launch, chat_id).await?;
+            launch_notify(bot, db, launch, chat_id, None).await?;
         }
     }
 
@@ -215,6 +215,7 @@ pub async fn launch_notify(
     db: &Db,
     launch: &Launch,
     chat_id: i64,
+    msg_id: Option<MessageId>,
 ) -> Result<(), RLError> {
     let now = (Utc::now() + Duration::try_seconds(1).unwrap())
         .duration_round(TimeDelta::try_minutes(1).unwrap())
@@ -244,7 +245,11 @@ pub async fn launch_notify(
     }
 
     info!("notifying {} about launch {}", chat_id, launch.id);
-    match bot.send_message(ChatId(chat_id), &text).await {
+    let mut fut = bot.send_message(ChatId(chat_id), &text);
+    if let Some(msg_id) = msg_id {
+        fut = fut.reply_to_message_id(msg_id);
+    }
+    match fut.await {
         Ok(_) => {
             db.set_notified(chat_id, launch.id, t0)?;
         }
