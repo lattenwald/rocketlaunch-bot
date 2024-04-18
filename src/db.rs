@@ -28,6 +28,10 @@ impl Db {
         Ok(Self { db })
     }
 
+    pub fn subscribers_count(&self) -> sled::Result<usize> {
+        Ok(self.db.iter().count())
+    }
+
     pub fn set_launches(&self, launches: &[Launch]) -> sled::Result<()> {
         self.db
             .set_merge_operator(|_key, _old, new| Some(new.to_vec()));

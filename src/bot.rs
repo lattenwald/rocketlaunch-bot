@@ -35,7 +35,7 @@ pub async fn init_bot(config: BotConfig, db: Db) -> (MyBot, MyDispatcher) {
             dptree::filter(|cfg: BotConfig, msg: Message| cfg.admin_chats.contains(&msg.chat.id.0))
                 .branch(
                     dptree::entry()
-                        .filter_command::<Command>()
+                        .filter_command::<AdminCommand>()
                         .endpoint(command_handler),
                 ),
         )
@@ -77,9 +77,12 @@ enum UnauthorizedCommand {
 
 #[derive(BotCommands, Clone, Debug)]
 #[command(rename_rule = "snake_case", description = "*Admin commands:*")]
-enum Command {
+enum AdminCommand {
     #[command(description = "help")]
     Help,
+
+    #[command(description = "subscribers count")]
+    SubscribersCount,
 }
 
 #[tracing::instrument(skip_all)]
@@ -181,15 +184,28 @@ async fn unauthorized_command_handler(
 }
 
 #[tracing::instrument(skip_all)]
-async fn command_handler(bot: MyBot, msg: Message, cmd: Command) -> ResponseResult<()> {
+async fn command_handler(
+    bot: MyBot,
+    msg: Message,
+    cmd: AdminCommand,
+    db: Db,
+) -> ResponseResult<()> {
     info!("handling: {:?}", cmd);
     match cmd {
-        Command::Help => {
+        AdminCommand::Help => {
             let commands = [
-                Command::descriptions().to_string(),
+                AdminCommand::descriptions().to_string(),
                 UnauthorizedCommand::descriptions().to_string(),
             ];
-            bot.send_message(msg.chat.id, commands.join("\n\n"))
+            bot.send_message(msg.chat.id, commands.join("\\n\\n"))
+                .reply_to_message_id(msg.id)
+                .await?;
+        }
+        AdminCommand::SubscribersCount => {
+            let count = db
+                .subscribers_count()
+                .expect("failed getting subscribers count");
+            bot.send_message(msg.chat.id, format!("Total subscribers: {}", count))
                 .reply_to_message_id(msg.id)
                 .await?;
         }
