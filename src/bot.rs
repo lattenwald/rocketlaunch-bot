@@ -65,6 +65,12 @@ enum UnauthorizedCommand {
     #[command(description = "unsubscribe from launches notifications")]
     Stop,
 
+    #[command(description = "show launches")]
+    Launches,
+
+    #[command(description = "show next launch")]
+    Next,
+
     #[command(description = "help")]
     Help,
 }
@@ -99,7 +105,7 @@ async fn unauthorized_command_handler(
             Ok(_) => {
                 bot.send_message(
                     msg.chat.id,
-                    markdown::escape("Есть подписка, ждите уведомлений!"),
+                    markdown::escape("Subscribed, standby for notifications!"),
                 )
                 .reply_to_message_id(msg.id)
                 .await?;
@@ -118,7 +124,7 @@ async fn unauthorized_command_handler(
                 bot.send_message(
                     msg.chat.id,
                     format!(
-                        "Ошибка подписки:\n```\n{}\n```",
+                        "Error subscribing:\n```\n{}\n```",
                         markdown::escape(&format!("{:?}", err))
                     ),
                 )
@@ -128,7 +134,7 @@ async fn unauthorized_command_handler(
         },
         UnauthorizedCommand::Stop => match db.unsubscribe(msg.chat.id.0) {
             Ok(_) => {
-                bot.send_message(msg.chat.id, "Отписались")
+                bot.send_message(msg.chat.id, "Unsubscribed")
                     .reply_to_message_id(msg.id)
                     .await?;
             }
@@ -136,7 +142,7 @@ async fn unauthorized_command_handler(
                 bot.send_message(
                     msg.chat.id,
                     format!(
-                        "Ошибка отписки:\n```\n{}\n```",
+                        "Error unsubscribing:\n```\n{}\n```",
                         markdown::escape(&format!("{:?}", err))
                     ),
                 )
@@ -144,6 +150,32 @@ async fn unauthorized_command_handler(
                 .await?;
             }
         },
+        UnauthorizedCommand::Launches => {
+            for launch in db.get_launches().unwrap_or_default() {
+                if launch.t0.is_none() {
+                    continue;
+                }
+                let _ = launch_notify(&bot, &db, &launch, msg.chat.id.0).await;
+            }
+        }
+        UnauthorizedCommand::Next => {
+            let now = Utc::now();
+            if let Some(launch) = db
+                .get_launches()
+                .unwrap_or_default()
+                .iter()
+                .filter(|l| {
+                    if let Some(t0) = l.t0 {
+                        t0 >= now
+                    } else {
+                        false
+                    }
+                })
+                .min_by_key(|l| l.t0)
+            {
+                let _ = launch_notify(&bot, &db, launch, msg.chat.id.0).await;
+            }
+        }
     }
     Ok(())
 }
