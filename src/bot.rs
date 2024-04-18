@@ -54,7 +54,7 @@ pub async fn init_bot(config: BotConfig, db: Db) -> (MyBot, MyDispatcher) {
 }
 
 #[derive(BotCommands, Clone, Debug)]
-#[command(rename_rule = "snake_case", description = "*Commands:*")]
+#[command(rename_rule = "snake_case", description = "Commands:")]
 enum UnauthorizedCommand {
     #[command(description = "current chat id")]
     Id,
@@ -76,7 +76,7 @@ enum UnauthorizedCommand {
 }
 
 #[derive(BotCommands, Clone, Debug)]
-#[command(rename_rule = "snake_case", description = "*Admin commands:*")]
+#[command(rename_rule = "snake_case", description = "Admin commands:")]
 enum AdminCommand {
     #[command(description = "help")]
     Help,
@@ -197,7 +197,7 @@ async fn command_handler(
                 AdminCommand::descriptions().to_string(),
                 UnauthorizedCommand::descriptions().to_string(),
             ];
-            bot.send_message(msg.chat.id, commands.join("\\n\\n"))
+            bot.send_message(msg.chat.id, markdown::escape(&commands.join("\\n\\n")))
                 .reply_to_message_id(msg.id)
                 .await?;
         }
