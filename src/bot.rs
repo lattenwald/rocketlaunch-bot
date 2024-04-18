@@ -216,7 +216,7 @@ pub async fn launch_notify(
     launch: &Launch,
     chat_id: i64,
 ) -> Result<(), RLError> {
-    let now = Utc::now()
+    let now = (Utc::now() + Duration::try_seconds(1).unwrap())
         .duration_round(TimeDelta::try_minutes(1).unwrap())
         .unwrap();
     let Some(t0) = launch.t0 else {
