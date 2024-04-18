@@ -197,7 +197,7 @@ async fn command_handler(
                 AdminCommand::descriptions().to_string(),
                 UnauthorizedCommand::descriptions().to_string(),
             ];
-            bot.send_message(msg.chat.id, markdown::escape(&commands.join("\\n\\n")))
+            bot.send_message(msg.chat.id, markdown::escape(&commands.join("\n\n")))
                 .reply_to_message_id(msg.id)
                 .await?;
         }
