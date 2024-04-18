@@ -1,5 +1,6 @@
 ## TODO
 
+- [ ] Reply to `/launches` should be single message
 - [ ] Custom notification times
 - [ ] Set timezone for using in notifications
 - [ ] Unsubscribe from specific launch
