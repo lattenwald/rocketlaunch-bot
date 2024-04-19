@@ -1,5 +1,6 @@
+use chrono::{Duration, DurationRound, TimeDelta, Utc};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{
     bot::{launches_notify, MyBot},
@@ -37,6 +38,7 @@ pub async fn worker(db: Db, bot: MyBot, cancellation: CancellationToken) {
     }
 }
 
+#[tracing::instrument(skip_all)]
 async fn worker_loop(
     db: &Db,
     bot: &MyBot,
@@ -47,11 +49,20 @@ async fn worker_loop(
         db.set_launches(&launches)?;
         launches_notify(bot, db, &launches).await?;
 
+        let next_run_in: Duration = {
+            let next_min = (Utc::now() + Duration::try_minutes(1).unwrap())
+                .duration_round(TimeDelta::try_minutes(1).unwrap())
+                .unwrap();
+            next_min - Utc::now()
+        };
+
+        debug!("next run in {}", &next_run_in);
+
         tokio::select! {
             _ = cancellation.cancelled() => {
                 return Ok(());
             }
-            _ = tokio::time::sleep(tokio::time::Duration::from_secs(60)) => {}
+            _ = tokio::time::sleep(next_run_in.to_std().unwrap()) => {}
         }
     }
 }
