@@ -233,9 +233,7 @@ pub async fn launch_notify(
     chat_id: i64,
     msg_id: Option<MessageId>,
 ) -> Result<(), RLError> {
-    let now = Utc::now()
-        .duration_round(TimeDelta::try_minutes(1).unwrap())
-        .unwrap();
+    let now = Utc::now().duration_round(TimeDelta::try_minutes(1).unwrap())?;
     let Some(t0) = launch.t0 else {
         return Ok(());
     };
@@ -245,10 +243,7 @@ pub async fn launch_notify(
         markdown::escape(&launch.vehicle.name),
         markdown::escape(&launch.slug),
         markdown::escape(&format!("{}", t0)),
-        markdown::escape(&format!(
-            "{}",
-            format_duration((t0 - now).to_std().unwrap())
-        )),
+        markdown::escape(&format!("{}", format_duration((t0 - now).to_std()?))),
         markdown::escape(&format!("{}", launch.pad)),
     );
 

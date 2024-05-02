@@ -169,4 +169,10 @@ pub enum RLError {
 
     #[error("teloxide -> {0}")]
     Teloxide(#[from] teloxide::RequestError),
+
+    #[error("chrono out of range -> {0}")]
+    ChronoOutOfRange(#[from] chrono::OutOfRangeError),
+
+    #[error("chrono rounding -> {0}")]
+    ChronoRounding(#[from] chrono::RoundingError),
 }
